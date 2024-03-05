@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Code Generator</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Include jscolor library -->
+    <script src="jscolor.js"></script>
 </head>
 <body>
 	<header class="header">
@@ -18,15 +20,27 @@
         <h1>QR Code Generator</h1>
         <label for="text-input">Enter text or URL:</label>
         <input type="text" id="text-input" placeholder="Enter text or URL">
-        <button onclick="generateQRCode()">Generate QR Code</button>
         
-		<div id="qrcode"></div>
-    <script src="qrcode.min.js"></script>
-    <script src="script.js"></script>
-	
-	<footer>
-		<a src""> © TriHealth 2024 </a>
-		<a src="">| 513 569 5100 </a>
-	</footer>
+        <!-- Use class="jscolor" for the color wheel input -->
+        <label for="color-picker">Select QR Code color:</label>
+        <input class="jscolor" id="color-picker" value="#000000">
+        
+        <button onclick="generateQRCode()">Generate QR Code</button>
+        <div id="qrcode"></div>
+        <script src="qrcode.min.js"></script>
+        <script src="script.js"></script>
+        <script src="app.js"></script>
+        
+        <!-- Initialize the color picker -->
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                jscolor.installByClassName("jscolor");
+            });
+        </script>
+    </div>
+    <footer>
+        <a href=""> © TriHealth 2024 </a>
+        <a href="">| 513 569 5100 </a>
+    </footer>
 </body>
 </html>

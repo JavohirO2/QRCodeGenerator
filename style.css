@@ -46,7 +46,7 @@ footer {
   width: 100%;
 	display: grid;
 	grid-row: 50/50 ;	
-    text-align: bottom;
+    text-align: center;
     padding: 10px;
     background-color: #333;
     color: #fff;
