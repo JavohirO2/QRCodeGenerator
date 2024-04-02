@@ -1,0 +1,21 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "include": ["vite.config.*", "vitest.config.*", "cypress.config.*", "playwright.config.*", "src/**/*.ts"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",  // Adjust the output directory as needed
+    "types": ["node"]
+  }
+}
+
+
+
+{
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "include": ["vite.config.*", "vitest.config.*", "cypress.config.*", "playwright.config.*", "src/**/*.ts"],
+  "compilerOptions": {
+    "composite": true,
+    "types": ["node"]
+  }
+}
+
