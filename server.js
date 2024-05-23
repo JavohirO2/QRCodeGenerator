@@ -4,14 +4,14 @@ const path = require('path');
 const sql = require('mssql');
 
 const app = express();
-const PORT = process.env.PORT || 5173;
+const PORT = process.env.PORT || 3000;
 
 const config = {
     user: 'qrCodeUser',
-    password:'Pa$$w0rd12345',
-    server:'T-SCOR-MS-DB90',
-    database:'QrCodeGenerator',
-    options:{
+    password: 'Pa$$w0rd12345',
+    server: 'T-SCOR-MS-DB90',
+    database: 'QrCodeGenerator',
+    options: {
         encrypt: true,
         trustServerCertificate: true
     }
@@ -25,65 +25,98 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const pool = new sql.ConnectionPool(config);
 const poolConnect = pool.connect();
 
-// API request to check if data exists
-app.post('/checkDuplicate', async (req, res) => {
+// Route to shorten url
+app.post('/shorten', async (req, res) => {
+    await poolConnect; // ensure the pool is connected
+
+    const { originalUrl } = req.body;
+    console.log("🚀 ~ app.post ~ originalUrl:", originalUrl);
+
+    // Generate a unique shortcode
+    const shortCode = generateShortCode();
+
+    // Insert the mapping into the database
+    const request = pool.request();
+    const shortenedUrl = `https://dev-s.trihealth.com/${shortCode}`;
+    request.input('originalUrl', sql.NVarChar, originalUrl);
+    request.input('shortCode', sql.NVarChar, shortCode);
+    await request.query('INSERT INTO urlshortner (originalUrl, shortCode, createdate, accessCount, lastAccessed) VALUES (@originalUrl, @shortCode, GETDATE(), 0, NULL)');
+
+    res.json({ originalUrl, shortenedUrl });
+});
+
+app.get('/', function (req, res) {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/:shortCode', async (req, res) => {
     await poolConnect;
-    const { data } = req.body;
+
+    const { shortCode } = req.params;
+    console.log("🚀 ~ app.get ~ shortCode:", shortCode);
 
     const request = pool.request();
-    request.input('data', sql.NVarChar, data);
-    const result = await request.query('SELECT * FROM qrcode WHERE link = @data');
+    request.input('shortCode', sql.NVarChar, shortCode);
+    const result = await request.query('SELECT originalUrl, accessCount FROM urlshortner WHERE shortCode = @shortCode');
 
     if (result.recordset.length > 0) {
-        res.json({ exists: true, message: "Data already exists" });
+        const originalUrl = result.recordset[0].originalUrl;
+        const accessCount = result.recordset[0].accessCount;
+        console.log("🚀 ~ app.get ~ result:", result);
+
+        // Update access count and last accessed date
+        const updateRequest = pool.request();
+        updateRequest.input('shortCode', sql.NVarChar, shortCode);
+        updateRequest.input('accessCount', sql.Int, accessCount + 1);
+        await updateRequest.query('UPDATE urlshortner SET accessCount = @accessCount, lastAccessed = GETDATE() WHERE shortCode = @shortCode');
+
+        res.status(301).redirect(originalUrl);
     } else {
-        res.json({ exists: false, message: "Data does not exist" });
+        res.status(404).send('URL not found');
+        console.log('else statement is being called on');
     }
 });
 
-// API request to modify existing data
-app.put('/updateQrCode/:id', async (req, res) => {
-    await poolConnect;
-    const { id } = req.params;
-    const { data, linkDescription } = req.body;
-
-    const request = pool.request();
-    request.input('id', sql.Int, id);
-    request.input('data', sql.NVarChar, data);
-    request.input('linkDescription', sql.NVarChar, linkDescription);
-    const result = await request.query('UPDATE qrcode SET link = @data, linkDescription = @linkDescription WHERE id = @id');
-
-    if (result.rowsAffected[0] > 0) {
-        res.json({ success: true, message: "Data updated successfully" });
-    } else {
-        res.json({ success: false, message: "Failed to update data" });
+app.get('/data', async (req, res) => {
+    await poolConnect; // ensure the pool is connected
+    try {
+        const request = pool.request();
+        const result = await request.query('SELECT urlshortnerId, originalUrl, shortCode, accessCount, lastAccessed FROM urlshortner');
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).send(err.message);
     }
 });
 
-// API request to pull data for combobox
-app.get('/getQrCodes', async (req, res) => {
-    await poolConnect;
-
-    const request = pool.request();
-    const result = await request.query('SELECT id, link, linkDescription FROM qrcode');
-
-    res.json(result.recordset);
-});
-
-// Existing saveQrCode API
-app.post('/saveQrCode', async (req, res) => {
-    await poolConnect;
-    const { data, linkDescription } = req.body;
-    console.log("app.post Data and Description", data, linkDescription);
-    
-    const request = pool.request();
-    request.input('data', sql.NVarChar, data);
-    request.input('linkDescription', sql.NVarChar, linkDescription);
-    const result = await request.query('INSERT INTO qrcode (link, linkDescription, createdate) VALUES (@data, @linkDescription, GETDATE())'); 
-
-    res.json({ success: true, message: "QR Code saved successfully" });
-});
+function generateShortCode() {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let shortCode = '';
+    for (let i = 0; i < 6; i++) {
+        shortCode += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return shortCode;
+}
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+});
+
+// Route to check if the original URL already exists
+app.post('/exists', async (req, res) => {
+    await poolConnect; // ensure the pool is connected
+
+    const { originalUrl } = req.body;
+    console.log("🚀 ~ app.post ~ originalUrl:", originalUrl);
+
+    const request = pool.request();
+    request.input('originalUrl', sql.NVarChar, originalUrl);
+    const result = await request.query('SELECT originalUrl FROM urlshortner WHERE originalUrl = @originalUrl');
+
+    if (result.recordset.length > 0) {
+        // If the URL already exists, send back a response indicating it exists
+        res.json({ exists: true });
+    } else {
+        // If the URL does not exist, send back a response indicating it does not exist
+        res.json({ exists: false });
+    }
 });
