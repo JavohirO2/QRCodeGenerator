@@ -40,7 +40,7 @@ app.post('/shorten', async (req, res) => {
     const shortenedUrl = `https://dev-s.trihealth.com/${shortCode}`;
     request.input('originalUrl', sql.NVarChar, originalUrl);
     request.input('shortCode', sql.NVarChar, shortCode);
-    await request.query('INSERT INTO urlshortner (originalUrl, shortCode, createdate, accessCount, lastAccessed) VALUES (@originalUrl, @shortCode, GETDATE(), 0, NULL)');
+    await request.query('INSERT INTO urlshortner (originalUrl, shortCode, createdate, accessCount) VALUES (@originalUrl, @shortCode, GETDATE(), 0)');
 
     res.json({ originalUrl, shortenedUrl });
 });
@@ -57,18 +57,13 @@ app.get('/:shortCode', async (req, res) => {
 
     const request = pool.request();
     request.input('shortCode', sql.NVarChar, shortCode);
-    const result = await request.query('SELECT originalUrl, accessCount FROM urlshortner WHERE shortCode = @shortCode');
+    request.output('originalUrl', sql.NVarChar);
 
-    if (result.recordset.length > 0) {
-        const originalUrl = result.recordset[0].originalUrl;
-        const accessCount = result.recordset[0].accessCount;
+    const result = await request.execute('GetOriginalUrlAndUpdateCount');
+
+    if (result.output.originalUrl) {
+        const originalUrl = result.output.originalUrl;
         console.log("🚀 ~ app.get ~ result:", result);
-
-        // Update access count and last accessed date
-        const updateRequest = pool.request();
-        updateRequest.input('shortCode', sql.NVarChar, shortCode);
-        updateRequest.input('accessCount', sql.Int, accessCount + 1);
-        await updateRequest.query('UPDATE urlshortner SET accessCount = @accessCount, lastAccessed = GETDATE() WHERE shortCode = @shortCode');
 
         res.status(301).redirect(originalUrl);
     } else {
@@ -81,7 +76,7 @@ app.get('/data', async (req, res) => {
     await poolConnect; // ensure the pool is connected
     try {
         const request = pool.request();
-        const result = await request.query('SELECT urlshortnerId, originalUrl, shortCode, accessCount, lastAccessed FROM urlshortner');
+        const result = await request.query('SELECT urlshortnerId, originalUrl, shortCode, accessCount FROM urlshortner');
         res.json(result.recordset);
     } catch (err) {
         res.status(500).send(err.message);
